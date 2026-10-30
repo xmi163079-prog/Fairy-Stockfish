@@ -685,8 +685,6 @@ void Position::set_state(StateInfo* si) const {
 
   si->key = si->materialKey = 0;
   si->pawnKey = Zobrist::noPawns;
-  si->chees620DoubleStepRights[WHITE] = pieces(WHITE, PAWN);
-  si->chees620DoubleStepRights[BLACK] = pieces(BLACK, PAWN);
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
   si->checkersBB = count<KING>(sideToMove) ? attackers_to(square<KING>(sideToMove), ~sideToMove) : Bitboard(0);
   si->move = MOVE_NONE;
