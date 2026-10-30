@@ -42,6 +42,7 @@ namespace Zobrist {
   Key enpassant[FILE_NB];
   Key castling[CASTLING_RIGHT_NB];
   Key side, noPawns;
+  Key chees620DoubleStep[COLOR_NB][SQUARE_NB];
   Key inHand[PIECE_NB][SQUARE_NB];
   Key checks[COLOR_NB][CHECKS_NB];
   Key wall[SQUARE_NB];
@@ -172,6 +173,10 @@ void Position::init() {
 
   Zobrist::side = rng.rand<Key>();
   Zobrist::noPawns = rng.rand<Key>();
+
+  for (Color c : {WHITE, BLACK})
+      for (Square s = SQ_A1; s <= SQ_MAX; ++s)
+          Zobrist::chees620DoubleStep[c][s] = rng.rand<Key>();
 
   for (Color c : {WHITE, BLACK})
       for (int n = 0; n < CHECKS_NB; ++n)
@@ -543,7 +548,72 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   chess960 = isChess960 || v->chess960;
   tsumeMode = Options["TsumeMode"];
   thisThread = th;
+  // Initialize lifetime double-step rights only when loading a new position.
+  // set_state() is also used for debug recomputation and must preserve them.
+  if (var->chees620PawnDoubleStep)
+  {
+      st->chees620DoubleStepRights[WHITE] = pieces(WHITE, PAWN);
+      st->chees620DoubleStepRights[BLACK] = pieces(BLACK, PAWN);
+  }
+
   set_state(st);
+
+  // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
+  // Legacy six-field FENs at ply zero are treated as fresh starts. A
+  // mid-game FEN without the extension cannot safely recover consumed rights.
+  if (var->chees620PawnDoubleStep)
+  {
+      string rightsToken;
+      Bitboard rights[COLOR_NB] = {0, 0};
+      bool tokenPresent = bool(ss >> std::skipws >> rightsToken)
+                         && rightsToken.rfind("c620:", 0) == 0;
+      bool hasRights = tokenPresent;
+
+      if (hasRights)
+      {
+          size_t sep = rightsToken.find(':', 5);
+          if (sep == string::npos || sep == 5 || sep + 1 == rightsToken.size())
+              hasRights = false;
+          else
+          {
+              try
+              {
+                  size_t usedWhite = 0, usedBlack = 0;
+                  string whiteHex = rightsToken.substr(5, sep - 5);
+                  string blackHex = rightsToken.substr(sep + 1);
+                  rights[WHITE] = std::stoull(whiteHex, &usedWhite, 16);
+                  rights[BLACK] = std::stoull(blackHex, &usedBlack, 16);
+                  hasRights = usedWhite == whiteHex.size() && usedBlack == blackHex.size();
+              }
+              catch (...)
+              {
+                  hasRights = false;
+              }
+          }
+      }
+
+      // Fresh starts without an extension grant each pawn its lifetime right.
+      // A malformed supplied extension or a mid-game legacy FEN must not
+      // silently grant new rights.
+      if (!hasRights)
+      {
+          if (tokenPresent || gamePly != 0)
+              rights[WHITE] = rights[BLACK] = 0;
+          else
+          {
+              rights[WHITE] = pieces(WHITE, PAWN);
+              rights[BLACK] = pieces(BLACK, PAWN);
+          }
+      }
+
+      for (Color c : {WHITE, BLACK})
+      {
+          rights[c] &= pieces(c, PAWN);
+          for (Bitboard b = st->chees620DoubleStepRights[c] ^ rights[c]; b; )
+              st->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
+          st->chees620DoubleStepRights[c] = rights[c];
+      }
+  }
 
   assert(pos_is_ok());
 
@@ -623,6 +693,8 @@ void Position::set_state(StateInfo* si) const {
 
   si->key = si->materialKey = 0;
   si->pawnKey = Zobrist::noPawns;
+  // Preserve Chees 620 rights: this function also recomputes StateInfo in
+  // debug validation, where resetting them from current pawn locations is wrong.
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
   si->checkersBB = count<KING>(sideToMove) ? attackers_to(square<KING>(sideToMove), ~sideToMove) : Bitboard(0);
   si->move = MOVE_NONE;
@@ -652,6 +724,11 @@ void Position::set_state(StateInfo* si) const {
       si->key ^= Zobrist::side;
 
   si->key ^= Zobrist::castling[si->castlingRights];
+
+  if (var->chees620PawnDoubleStep)
+      for (Color c : {WHITE, BLACK})
+          for (Bitboard b = si->chees620DoubleStepRights[c]; b; )
+              si->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
 
   for (Color c : {WHITE, BLACK})
       for (PieceType pt = PAWN; pt <= KING; ++pt)
@@ -834,6 +911,17 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
       ss << st->rule50;
 
   ss << " " << 1 + (gamePly - (sideToMove == BLACK)) / 2;
+
+  if (var->chees620PawnDoubleStep)
+  {
+      ss << " c620:";
+      for (Color c : {WHITE, BLACK})
+      {
+          if (c == BLACK)
+              ss << ':';
+          ss << std::hex << st->chees620DoubleStepRights[c] << std::dec;
+      }
+  }
 
   return ss.str();
 }
@@ -1386,6 +1474,7 @@ bool Position::pseudo_legal(const Move m) const {
           && !((from + pawn_push(us) == to) && !(pieces() & to)) // Not a single push
           && !(   (from + 2 * pawn_push(us) == to)               // Not a double push
                && (double_step_region(us) & from)
+               && (!var->chees620PawnDoubleStep || (st->chees620DoubleStepRights[us] & from))
                && !(pieces() & (to | (to - pawn_push(us)))))
           && !(   (from + 3 * pawn_push(us) == to)               // Not a triple push
                && (triple_step_region(us) & from)
@@ -1587,6 +1676,12 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       assert((type_of(m) == PROMOTION && sittuyin_promotion()) || (is_pass(m) && (pass(us) || var->wallOrMove )));
       captured = NO_PIECE;
   }
+  if (var->chees620PawnDoubleStep && type_of(pc) == PAWN && (st->chees620DoubleStepRights[us] & from))
+  {
+      st->chees620DoubleStepRights[us] &= ~from;
+      k ^= Zobrist::chees620DoubleStep[us][from];
+  }
+
   st->capturedpromoted = is_promoted(to);
   st->unpromotedCapturedPiece = captured ? unpromoted_piece_on(to) : NO_PIECE;
   st->pass = is_pass(m);
@@ -1622,6 +1717,12 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           assert(st->epSquares & to);
           assert(var->enPassantRegion[us] & to);
           assert(piece_on(to) == NO_PIECE);
+      }
+
+      if (var->chees620PawnDoubleStep && type_of(captured) == PAWN && (st->chees620DoubleStepRights[them] & capsq))
+      {
+          st->chees620DoubleStepRights[them] &= ~capsq;
+          k ^= Zobrist::chees620DoubleStep[them][capsq];
       }
 
       // If the captured piece is a pawn, update pawn hash key, otherwise

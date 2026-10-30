@@ -50,6 +50,14 @@ namespace {
         v->nnueAlias = "nn-";
         return v;
     }
+    // Chees 620 variant registration; pawn-right move logic is implemented separately.
+    Variant* chees620_variant() {
+        Variant* v = chess_variant()->init();
+        v->chees620PawnDoubleStep = true;
+        v->doubleStepRegion[WHITE] = AllSquares;
+        v->doubleStepRegion[BLACK] = AllSquares;
+        return v;
+    }
     // Chess960 aka Fischer random chess
     // https://en.wikipedia.org/wiki/Fischer_random_chess
     Variant* chess960_variant() {
@@ -1847,6 +1855,7 @@ namespace {
 void VariantMap::init() {
     // Add to UCI_Variant option
     add("chess", chess_variant());
+    add("chees620", chees620_variant());
     add("normal", chess_variant());
     add("fischerandom", chess960_variant());
     add("nocastle", nocastle_variant());

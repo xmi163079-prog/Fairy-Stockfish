@@ -56,6 +56,9 @@ struct StateInfo {
   Square castlingKingSquare[COLOR_NB];
   Bitboard wallSquares;
   Bitboard gatesBB[COLOR_NB];
+  // Chees 620: pawns that have not yet used their lifetime double-step.
+  // Stored before key so Position::do_move copies/restores it with StateInfo.
+  Bitboard chees620DoubleStepRights[COLOR_NB];
 
   // Not copied when making a move (will be recomputed anyhow)
   Key        key;
@@ -248,6 +251,7 @@ public:
   Bitboard ep_squares() const;
   Square castling_king_square(Color c) const;
   Bitboard gates(Color c) const;
+  Bitboard chees620_double_step_rights(Color c) const { return var->chees620PawnDoubleStep ? st->chees620DoubleStepRights[c] : pieces(c, PAWN); }
   bool empty(Square s) const;
   int count(Color c, PieceType pt) const;
   template<PieceType Pt> int count(Color c) const;
