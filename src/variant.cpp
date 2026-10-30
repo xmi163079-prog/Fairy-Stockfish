@@ -54,8 +54,6 @@ namespace {
     Variant* chees620_variant() {
         Variant* v = chess_variant()->init();
         v->chees620PawnDoubleStep = true;
-        v->doubleStepRegion[WHITE] = AllSquares;
-        v->doubleStepRegion[BLACK] = AllSquares;
         return v;
     }
     // Chess960 aka Fischer random chess
