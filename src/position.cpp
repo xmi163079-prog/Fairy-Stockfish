@@ -548,6 +548,14 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   chess960 = isChess960 || v->chess960;
   tsumeMode = Options["TsumeMode"];
   thisThread = th;
+  // Initialize lifetime double-step rights only when loading a new position.
+  // set_state() is also used for debug recomputation and must preserve them.
+  if (var->chees620PawnDoubleStep)
+  {
+      st->chees620DoubleStepRights[WHITE] = pieces(WHITE, PAWN);
+      st->chees620DoubleStepRights[BLACK] = pieces(BLACK, PAWN);
+  }
+
   set_state(st);
 
   // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
@@ -673,8 +681,8 @@ void Position::set_state(StateInfo* si) const {
 
   si->key = si->materialKey = 0;
   si->pawnKey = Zobrist::noPawns;
-  si->chees620DoubleStepRights[WHITE] = var->chees620PawnDoubleStep ? pieces(WHITE, PAWN) : Bitboard(0);
-  si->chees620DoubleStepRights[BLACK] = var->chees620PawnDoubleStep ? pieces(BLACK, PAWN) : Bitboard(0);
+  // Preserve Chees 620 rights: this function also recomputes StateInfo in
+  // debug validation, where resetting them from current pawn locations is wrong.
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
   si->checkersBB = count<KING>(sideToMove) ? attackers_to(square<KING>(sideToMove), ~sideToMove) : Bitboard(0);
   si->move = MOVE_NONE;
