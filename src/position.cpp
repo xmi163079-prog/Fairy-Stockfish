@@ -584,10 +584,19 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
           }
       }
 
-      // Do not silently grant every pawn a fresh right when a malformed
-      // extension was explicitly supplied.
-      if (!hasRights && (tokenPresent || gamePly != 0))
-          rights[WHITE] = rights[BLACK] = 0;
+      // Fresh starts without an extension grant each pawn its lifetime right.
+      // A malformed supplied extension or a mid-game legacy FEN must not
+      // silently grant new rights.
+      if (!hasRights)
+      {
+          if (tokenPresent || gamePly != 0)
+              rights[WHITE] = rights[BLACK] = 0;
+          else
+          {
+              rights[WHITE] = pieces(WHITE, PAWN);
+              rights[BLACK] = pieces(BLACK, PAWN);
+          }
+      }
 
       for (Color c : {WHITE, BLACK})
       {
