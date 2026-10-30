@@ -550,6 +550,46 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   thisThread = th;
   set_state(st);
 
+  // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
+  // A legacy six-field FEN is treated as a fresh start only at ply zero;
+  // for a mid-game FEN, rights are cleared rather than incorrectly restored.
+  if (var->chees620PawnDoubleStep)
+  {
+      string rightsToken;
+      Bitboard rights[COLOR_NB] = {0, 0};
+      bool hasRights = bool(ss >> std::skipws >> rightsToken)
+                    && rightsToken.rfind("c620:", 0) == 0;
+      if (hasRights)
+      {
+          size_t sep = rightsToken.find(':', 5);
+          if (sep != string::npos)
+          {
+              try
+              {
+                  rights[WHITE] = std::stoull(rightsToken.substr(5, sep - 5), nullptr, 16);
+                  rights[BLACK] = std::stoull(rightsToken.substr(sep + 1), nullptr, 16);
+              }
+              catch (...)
+              {
+                  hasRights = false;
+              }
+          }
+          else
+              hasRights = false;
+      }
+
+      if (!hasRights && gamePly != 0)
+          rights[WHITE] = rights[BLACK] = 0;
+
+      for (Color c : {WHITE, BLACK})
+      {
+          rights[c] &= pieces(c, PAWN);
+          for (Bitboard b = st->chees620DoubleStepRights[c] ^ rights[c]; b; )
+              st->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
+          st->chees620DoubleStepRights[c] = rights[c];
+      }
+  }
+
   assert(pos_is_ok());
 
   return *this;
@@ -845,6 +885,17 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
       ss << st->rule50;
 
   ss << " " << 1 + (gamePly - (sideToMove == BLACK)) / 2;
+
+  if (var->chees620PawnDoubleStep)
+  {
+      ss << " c620:";
+      for (Color c : {WHITE, BLACK})
+      {
+          if (c == BLACK)
+              ss << ':';
+          ss << std::hex << st->chees620DoubleStepRights[c] << std::dec;
+      }
+  }
 
   return ss.str();
 }
