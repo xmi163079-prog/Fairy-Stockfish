@@ -45,6 +45,7 @@ namespace Zobrist {
   Key inHand[PIECE_NB][SQUARE_NB];
   Key checks[COLOR_NB][CHECKS_NB];
   Key wall[SQUARE_NB];
+  Key chees620DoubleStep[COLOR_NB][SQUARE_NB];
   Key endgame[EG_EVAL_NB];
 }
 
@@ -184,6 +185,10 @@ void Position::init() {
 
   for (Square s = SQ_A1; s <= SQ_MAX; ++s)
       Zobrist::wall[s] = rng.rand<Key>();
+
+  for (Color c : {WHITE, BLACK})
+      for (Square s = SQ_A1; s <= SQ_MAX; ++s)
+          Zobrist::chees620DoubleStep[c][s] = rng.rand<Key>();
 
   for (int i = NO_EG_EVAL; i < EG_EVAL_NB; ++i)
       Zobrist::endgame[i] = rng.rand<Key>();
@@ -623,6 +628,8 @@ void Position::set_state(StateInfo* si) const {
 
   si->key = si->materialKey = 0;
   si->pawnKey = Zobrist::noPawns;
+  si->chees620DoubleStepRights[WHITE] = pieces(WHITE, PAWN);
+  si->chees620DoubleStepRights[BLACK] = pieces(BLACK, PAWN);
   si->nonPawnMaterial[WHITE] = si->nonPawnMaterial[BLACK] = VALUE_ZERO;
   si->checkersBB = count<KING>(sideToMove) ? attackers_to(square<KING>(sideToMove), ~sideToMove) : Bitboard(0);
   si->move = MOVE_NONE;
@@ -647,6 +654,10 @@ void Position::set_state(StateInfo* si) const {
 
   for (Bitboard b = si->epSquares; b; )
       si->key ^= Zobrist::enpassant[file_of(pop_lsb(b))];
+
+  for (Color c : {WHITE, BLACK})
+      for (Bitboard b = si->chees620DoubleStepRights[c]; b; )
+          si->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
 
   if (sideToMove == BLACK)
       si->key ^= Zobrist::side;
@@ -1377,6 +1388,11 @@ bool Position::pseudo_legal(const Move m) const {
   // Handle the special case of a pawn move
   if (type_of(pc) == PAWN)
   {
+      if (var->chees620PawnDoubleStep && (st->chees620DoubleStepRights[us] & from))
+      {
+          st->chees620DoubleStepRights[us] &= ~from;
+          k ^= Zobrist::chees620DoubleStep[us][from];
+      }
       // We have already handled promotion moves, so destination
       // cannot be on the 8th/1st rank.
       if (mandatory_pawn_promotion() && (promotion_zone(us) & to) && !sittuyin_promotion())
@@ -1622,6 +1638,12 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           assert(st->epSquares & to);
           assert(var->enPassantRegion[us] & to);
           assert(piece_on(to) == NO_PIECE);
+      }
+
+      if (var->chees620PawnDoubleStep && type_of(captured) == PAWN && (st->chees620DoubleStepRights[them] & capsq))
+      {
+          st->chees620DoubleStepRights[them] &= ~capsq;
+          k ^= Zobrist::chees620DoubleStep[them][capsq];
       }
 
       // If the captured piece is a pawn, update pawn hash key, otherwise
