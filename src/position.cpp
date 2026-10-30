@@ -551,34 +551,42 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   set_state(st);
 
   // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
-  // A legacy six-field FEN is treated as a fresh start only at ply zero;
-  // for a mid-game FEN, rights are cleared rather than incorrectly restored.
+  // Legacy six-field FENs at ply zero are treated as fresh starts. A
+  // mid-game FEN without the extension cannot safely recover consumed rights.
   if (var->chees620PawnDoubleStep)
   {
       string rightsToken;
       Bitboard rights[COLOR_NB] = {0, 0};
-      bool hasRights = bool(ss >> std::skipws >> rightsToken)
-                    && rightsToken.rfind("c620:", 0) == 0;
+      bool tokenPresent = bool(ss >> std::skipws >> rightsToken)
+                       && rightsToken.rfind("c620:", 0) == 0;
+      bool hasRights = tokenPresent;
+
       if (hasRights)
       {
           size_t sep = rightsToken.find(':', 5);
-          if (sep != string::npos)
+          if (sep == string::npos || sep == 5 || sep + 1 == rightsToken.size())
+              hasRights = false;
+          else
           {
               try
               {
-                  rights[WHITE] = std::stoull(rightsToken.substr(5, sep - 5), nullptr, 16);
-                  rights[BLACK] = std::stoull(rightsToken.substr(sep + 1), nullptr, 16);
+                  size_t usedWhite = 0, usedBlack = 0;
+                  string whiteHex = rightsToken.substr(5, sep - 5);
+                  string blackHex = rightsToken.substr(sep + 1);
+                  rights[WHITE] = std::stoull(whiteHex, &usedWhite, 16);
+                  rights[BLACK] = std::stoull(blackHex, &usedBlack, 16);
+                  hasRights = usedWhite == whiteHex.size() && usedBlack == blackHex.size();
               }
               catch (...)
               {
                   hasRights = false;
               }
           }
-          else
-              hasRights = false;
       }
 
-      if (!hasRights && gamePly != 0)
+      // Do not silently grant every pawn a fresh right when a malformed
+      // extension was explicitly supplied.
+      if (!hasRights && (tokenPresent || gamePly != 0))
           rights[WHITE] = rights[BLACK] = 0;
 
       for (Color c : {WHITE, BLACK})
