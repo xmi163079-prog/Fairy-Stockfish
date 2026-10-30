@@ -156,8 +156,7 @@ namespace {
     // Define single and double push, left and right capture, as well as respective promotion moves
     Bitboard b1 = shift<Up>(pawns) & movable & target;
     Bitboard doubleStepPawns = pawns & doubleStepRegion;
-    if (pos.chees620())
-        doubleStepPawns &= pos.chees620_double_step_rights(Us);
+    doubleStepPawns &= pos.chees620_double_step_rights(Us);
     Bitboard b2 = shift<Up>(shift<Up>(doubleStepPawns) & movable) & movable & target;
     Bitboard b3 = shift<Up>(shift<Up>(shift<Up>(pawns & tripleStepRegion) & movable) & movable) & movable & target;
     Bitboard brc = shift<UpRight>(pawns) & capturable & target;
