@@ -1439,11 +1439,6 @@ bool Position::pseudo_legal(const Move m) const {
   // Handle the special case of a pawn move
   if (type_of(pc) == PAWN)
   {
-      if (var->chees620PawnDoubleStep && (st->chees620DoubleStepRights[us] & from))
-      {
-          st->chees620DoubleStepRights[us] &= ~from;
-          k ^= Zobrist::chees620DoubleStep[us][from];
-      }
       // We have already handled promotion moves, so destination
       // cannot be on the 8th/1st rank.
       if (mandatory_pawn_promotion() && (promotion_zone(us) & to) && !sittuyin_promotion())
