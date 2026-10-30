@@ -1462,6 +1462,7 @@ bool Position::pseudo_legal(const Move m) const {
           && !((from + pawn_push(us) == to) && !(pieces() & to)) // Not a single push
           && !(   (from + 2 * pawn_push(us) == to)               // Not a double push
                && (double_step_region(us) & from)
+               && (!var->chees620PawnDoubleStep || (st->chees620DoubleStepRights[us] & from))
                && !(pieces() & (to | (to - pawn_push(us)))))
           && !(   (from + 3 * pawn_push(us) == to)               // Not a triple push
                && (triple_step_region(us) & from)
