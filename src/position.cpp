@@ -565,8 +565,9 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   {
       string rightsToken;
       Bitboard rights[COLOR_NB] = {0, 0};
-      bool hasRights = bool(ss >> std::skipws >> rightsToken)
-                    && rightsToken.rfind("c620:", 0) == 0;
+      bool tokenPresent = bool(ss >> std::skipws >> rightsToken)
+                         && rightsToken.rfind("c620:", 0) == 0;
+      bool hasRights = tokenPresent;
 
       if (hasRights)
       {
@@ -591,7 +592,8 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
           }
       }
 
-      if (!hasRights && gamePly != 0)
+      // A malformed supplied extension must not silently grant fresh rights.
+      if (!hasRights && (tokenPresent || gamePly != 0))
           rights[WHITE] = rights[BLACK] = 0;
 
       for (Color c : {WHITE, BLACK})
