@@ -251,7 +251,7 @@ public:
   Bitboard ep_squares() const;
   Square castling_king_square(Color c) const;
   Bitboard gates(Color c) const;
-  Bitboard chees620_double_step_rights(Color c) const { return st->chees620DoubleStepRights[c]; }
+  Bitboard chees620_double_step_rights(Color c) const { return var->chees620PawnDoubleStep ? st->chees620DoubleStepRights[c] : pieces(c, PAWN); }
   bool empty(Square s) const;
   int count(Color c, PieceType pt) const;
   template<PieceType Pt> int count(Color c) const;
