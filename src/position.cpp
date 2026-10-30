@@ -1603,6 +1603,16 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       assert((type_of(m) == PROMOTION && sittuyin_promotion()) || (is_pass(m) && (pass(us) || var->wallOrMove )));
       captured = NO_PIECE;
   }
+
+  // Chees 620: a pawn's first move consumes its lifetime double-step right,
+  // regardless of whether that move advances one, two, or captures.
+  if (var->chees620PawnDoubleStep && type_of(pc) == PAWN
+      && (st->chees620DoubleStepRights[us] & from))
+  {
+      st->chees620DoubleStepRights[us] &= ~from;
+      k ^= Zobrist::chees620DoubleStep[us][from];
+  }
+
   st->capturedpromoted = is_promoted(to);
   st->unpromotedCapturedPiece = captured ? unpromoted_piece_on(to) : NO_PIECE;
   st->pass = is_pass(m);
