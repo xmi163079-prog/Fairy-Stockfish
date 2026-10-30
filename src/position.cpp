@@ -550,6 +550,51 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   thisThread = th;
   set_state(st);
 
+  // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
+  // Legacy six-field FENs at ply zero are treated as fresh starts. A
+  // mid-game FEN without the extension cannot safely recover consumed rights.
+  if (var->chees620PawnDoubleStep)
+  {
+      string rightsToken;
+      Bitboard rights[COLOR_NB] = {0, 0};
+      bool hasRights = bool(ss >> std::skipws >> rightsToken)
+                    && rightsToken.rfind("c620:", 0) == 0;
+
+      if (hasRights)
+      {
+          size_t sep = rightsToken.find(':', 5);
+          if (sep == string::npos || sep == 5 || sep + 1 == rightsToken.size())
+              hasRights = false;
+          else
+          {
+              try
+              {
+                  size_t usedWhite = 0, usedBlack = 0;
+                  string whiteHex = rightsToken.substr(5, sep - 5);
+                  string blackHex = rightsToken.substr(sep + 1);
+                  rights[WHITE] = std::stoull(whiteHex, &usedWhite, 16);
+                  rights[BLACK] = std::stoull(blackHex, &usedBlack, 16);
+                  hasRights = usedWhite == whiteHex.size() && usedBlack == blackHex.size();
+              }
+              catch (...)
+              {
+                  hasRights = false;
+              }
+          }
+      }
+
+      if (!hasRights && gamePly != 0)
+          rights[WHITE] = rights[BLACK] = 0;
+
+      for (Color c : {WHITE, BLACK})
+      {
+          rights[c] &= pieces(c, PAWN);
+          for (Bitboard b = st->chees620DoubleStepRights[c] ^ rights[c]; b; )
+              st->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
+          st->chees620DoubleStepRights[c] = rights[c];
+      }
+  }
+
   assert(pos_is_ok());
 
   return *this;
@@ -846,6 +891,17 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
       ss << st->rule50;
 
   ss << " " << 1 + (gamePly - (sideToMove == BLACK)) / 2;
+
+  if (var->chees620PawnDoubleStep)
+  {
+      ss << " c620:";
+      for (Color c : {WHITE, BLACK})
+      {
+          if (c == BLACK)
+              ss << ':';
+          ss << std::hex << st->chees620DoubleStepRights[c] << std::dec;
+      }
+  }
 
   return ss.str();
 }
