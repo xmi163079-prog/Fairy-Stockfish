@@ -40,6 +40,12 @@ if [[ $1 == "all" || $1 == "variant" ]]; then
   expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1" 1 7 > /dev/null
   # A mid-game legacy FEN without c620 rights must not regrant the pawn's double-step.
   expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 2" 1 6 > /dev/null
+  # A one-square pawn move consumes the pawn's lifetime double-step right.
+  # After d4-d5 and a black king reply, d5-d7 must not be generated.
+  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1 moves d4d5 h8g8" 1 6 > /dev/null
+  # A pawn capture also consumes its double-step right.
+  # After d4xe5 and a black king reply, e5-e7 must not be generated.
+  expect perft.exp chees620 "fen 7k/8/8/4p3/3P4/8/8/4K3 w - - 0 1 moves d4e5 h8g8" 1 6 > /dev/null
   # Signed values are not valid hexadecimal rights and must not restore them.
   expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1 c620:-1:0" 1 6 > /dev/null
   expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1 c620:+8000000:0" 1 6 > /dev/null
