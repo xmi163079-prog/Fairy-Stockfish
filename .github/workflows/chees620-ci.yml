@@ -1,0 +1,43 @@
+name: Chees 620 targeted CI
+
+on:
+  push:
+    branches:
+      - chees620/pawn-first-double-step-check2
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build and test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential expect
+
+      - name: Build Fairy-Stockfish
+        working-directory: src
+        run: make -j2 ARCH=x86-64 build
+
+      - name: Verify Chees 620 is registered and accepts UCI
+        shell: bash
+        run: |
+          BIN="src/stockfish"
+          test -x "$BIN"
+          printf 'uci\nsetoption name UCI_Variant value chees620\nisready\nposition startpos\ngo perft 1\nquit\n' | "$BIN" > /tmp/chees620-uci.log
+          grep -q 'uciok' /tmp/chees620-uci.log
+          grep -q 'readyok' /tmp/chees620-uci.log
+          grep -q 'Nodes searched:' /tmp/chees620-uci.log
+
+      - name: Run Chees 620 perft regressions
+        run: |
+          chmod +x tests/perft.sh
+          tests/perft.sh variant
