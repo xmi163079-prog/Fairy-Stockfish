@@ -577,31 +577,33 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
               hasRights = false;
           else
           {
-              try
-              {
-                  size_t usedWhite = 0, usedBlack = 0;
-                  string whiteHex = rightsToken.substr(5, sep - 5);
-                  string blackHex = rightsToken.substr(sep + 1);
-                  auto isHex = [](const string& value) {
-                      return !value.empty()
-                          && std::all_of(value.begin(), value.end(), [](unsigned char ch) {
-                                 return (ch >= '0' && ch <= '9')
-                                     || (ch >= 'a' && ch <= 'f')
-                                     || (ch >= 'A' && ch <= 'F');
-                             });
-                  };
-                  hasRights = isHex(whiteHex) && isHex(blackHex);
-                  if (hasRights)
+              string whiteHex = rightsToken.substr(5, sep - 5);
+              string blackHex = rightsToken.substr(sep + 1);
+              auto parseHex = [](const string& value, Bitboard& result) {
+                  if (value.empty())
+                      return false;
+
+                  result = 0;
+                  for (unsigned char ch : value)
                   {
-                      rights[WHITE] = std::stoull(whiteHex, &usedWhite, 16);
-                      rights[BLACK] = std::stoull(blackHex, &usedBlack, 16);
-                      hasRights = usedWhite == whiteHex.size() && usedBlack == blackHex.size();
+                      unsigned digit;
+                      if (ch >= '0' && ch <= '9')
+                          digit = ch - '0';
+                      else if (ch >= 'a' && ch <= 'f')
+                          digit = ch - 'a' + 10;
+                      else if (ch >= 'A' && ch <= 'F')
+                          digit = ch - 'A' + 10;
+                      else
+                          return false;
+
+                      if (result > (~Bitboard(0) - digit) / 16)
+                          return false;
+                      result = result * 16 + digit;
                   }
-              }
-              catch (...)
-              {
-                  hasRights = false;
-              }
+                  return true;
+              };
+              hasRights = parseHex(whiteHex, rights[WHITE])
+                       && parseHex(blackHex, rights[BLACK]);
           }
       }
 
