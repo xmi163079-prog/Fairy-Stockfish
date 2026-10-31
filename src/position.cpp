@@ -596,9 +596,9 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
                       else
                           return false;
 
-                      if (result > (~Bitboard(0) - digit) / 16)
+                      if (result > (~Bitboard(0) - Bitboard(digit)) / Bitboard(16))
                           return false;
-                      result = result * 16 + digit;
+                      result = result * Bitboard(16) + Bitboard(digit);
                   }
                   return true;
               };
@@ -935,9 +935,9 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
           string hex;
           do
           {
-              unsigned digit = unsigned(rights & 0xF);
+              unsigned digit = unsigned(rights & Bitboard(0xF));
               hex += "0123456789abcdef"[digit];
-              rights >>= 4;
+              rights = rights >> 4;
           } while (rights);
           std::reverse(hex.begin(), hex.end());
           ss << hex;
