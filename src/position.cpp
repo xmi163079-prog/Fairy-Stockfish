@@ -561,9 +561,11 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   {
       string rightsToken;
       Bitboard rights[COLOR_NB] = {0, 0};
-      bool tokenPresent = bool(ss >> std::skipws >> rightsToken)
-                       && rightsToken.rfind("c620:", 0) == 0;
-      bool hasRights = tokenPresent;
+      // Any trailing token means the FEN explicitly supplied an extension.
+      // Only the recognized c620 token may restore rights; unknown or malformed
+      // extensions must never be mistaken for a legacy fresh-start FEN.
+      bool tokenPresent = bool(ss >> std::skipws >> rightsToken);
+      bool hasRights = tokenPresent && rightsToken.rfind("c620:", 0) == 0;
 
       if (hasRights)
       {
