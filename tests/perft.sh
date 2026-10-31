@@ -36,10 +36,10 @@ fi
 # variants
 if [[ $1 == "all" || $1 == "variant" ]]; then
   # Chees 620: a fresh position grants a pawn on rank 4 its first-move double-step.
-  # With both kings safe, the legal moves are 5 white king + 2 pawn + 3 black king.
-  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1" 1 10 > /dev/null
+  # White has 5 king moves and 2 pawn moves (one-step and two-step).
+  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1" 1 7 > /dev/null
   # A mid-game legacy FEN without c620 rights must not regrant the pawn's double-step.
-  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 2" 1 9 > /dev/null
+  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 2" 1 6 > /dev/null
 
   # small board
   expect perft.exp losalamos startpos 5 191846 > /dev/null
