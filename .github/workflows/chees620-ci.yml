@@ -38,6 +38,7 @@ jobs:
           grep -q 'Nodes searched:' /tmp/chees620-uci.log
 
       - name: Run Chees 620 perft regressions
+        working-directory: src
         run: |
-          chmod +x tests/perft.sh
-          tests/perft.sh variant
+          chmod +x ../tests/perft.sh
+          ../tests/perft.sh variant
