@@ -1004,13 +1004,42 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
     std::vector<std::string> fenParts = get_fen_parts(fen, ' ');
     std::vector<std::string> startFenParts = get_fen_parts(v->startFen, ' ');
 
-    // check for number of parts
-    const unsigned int maxNumberFenParts = 6 + v->checkCounting;
+    // Chees 620 appends its per-pawn double-step rights as one variant-specific
+    // trailing FEN field. Keep the standard FEN field count unchanged for all
+    // other variants, and validate the extension before accepting it.
+    const unsigned int maxNumberFenParts = 6 + v->checkCounting
+                                           + unsigned(v->chees620PawnDoubleStep);
+    const bool hasChees620Rights = v->chees620PawnDoubleStep
+                                   && fenParts.size() == maxNumberFenParts;
     if (fenParts.size() < 1 || fenParts.size() > maxNumberFenParts)
     {
         std::cerr << "Invalid number of fen parts. Expected: >= 1 and <= " << maxNumberFenParts
                   << " Actual: " << fenParts.size() << std::endl;
         return FEN_INVALID_NB_PARTS;
+    }
+    if (hasChees620Rights)
+    {
+        const std::string& rights = fenParts.back();
+        const size_t firstColon = rights.find(':');
+        const size_t secondColon = firstColon == std::string::npos
+                                      ? std::string::npos : rights.find(':', firstColon + 1);
+#ifdef LARGEBOARDS
+        const size_t maxRightsDigits = 32;
+#else
+        const size_t maxRightsDigits = 16;
+#endif
+        auto isHexField = [maxRightsDigits](const std::string& field) {
+            return !field.empty() && field.size() <= maxRightsDigits
+                   && std::all_of(field.begin(), field.end(), [](unsigned char c) {
+                          return std::isxdigit(c);
+                      });
+        };
+        if (firstColon != 4 || rights.compare(0, 4, "c620") != 0
+            || secondColon == std::string::npos
+            || rights.find(':', secondColon + 1) != std::string::npos
+            || !isHexField(rights.substr(firstColon + 1, secondColon - firstColon - 1))
+            || !isHexField(rights.substr(secondColon + 1)))
+            return FEN_INVALID_CHAR;
     }
 
     // 1) Part
@@ -1125,7 +1154,7 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
     // 5) Part
     // check check count
     unsigned int optionalInbetweenFields = 2 * !skipCastlingAndEp;
-    unsigned int optionalTrailingFields = 0;
+    unsigned int optionalTrailingFields = unsigned(hasChees620Rights);
     if (fenParts.size() >= 3 + optionalInbetweenFields && v->checkCounting && fenParts.size() % 2)
     {
         if (check_check_count(fenParts[2 + optionalInbetweenFields]) == NOK)
