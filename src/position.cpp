@@ -580,7 +580,11 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
               string whiteHex = rightsToken.substr(5, sep - 5);
               string blackHex = rightsToken.substr(sep + 1);
               auto parseHex = [](const string& value, Bitboard& result) {
+#ifdef LARGEBOARDS
                   if (value.empty() || value.size() > 32)
+#else
+                  if (value.empty() || value.size() > 16)
+#endif
                       return false;
 
                   uint64_t high = 0, low = 0;
