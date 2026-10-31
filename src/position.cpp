@@ -580,10 +580,10 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
               string whiteHex = rightsToken.substr(5, sep - 5);
               string blackHex = rightsToken.substr(sep + 1);
               auto parseHex = [](const string& value, Bitboard& result) {
-                  if (value.empty())
+                  if (value.empty() || value.size() > 32)
                       return false;
 
-                  result = 0;
+                  uint64_t high = 0, low = 0;
                   for (unsigned char ch : value)
                   {
                       unsigned digit;
@@ -596,10 +596,21 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
                       else
                           return false;
 
-                      if (result > (~Bitboard(0) - Bitboard(digit)) / Bitboard(16))
+                      if (high > UINT64_MAX / 16)
                           return false;
-                      result = result * Bitboard(16) + Bitboard(digit);
+
+                      high = high * 16 + (low >> 60);
+                      low = (low << 4) | digit;
                   }
+#ifdef LARGEBOARDS
+#if defined(__GNUC__) && defined(IS_64BIT)
+                  result = (Bitboard(high) << 64) | Bitboard(low);
+#else
+                  result = Bitboard(high, low);
+#endif
+#else
+                  result = low;
+#endif
                   return true;
               };
               hasRights = parseHex(whiteHex, rights[WHITE])
@@ -933,12 +944,32 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
               ss << ':';
           Bitboard rights = st->chees620DoubleStepRights[c];
           string hex;
+#ifdef LARGEBOARDS
+#if defined(__GNUC__) && defined(IS_64BIT)
           do
           {
               unsigned digit = unsigned(rights & Bitboard(0xF));
               hex += "0123456789abcdef"[digit];
-              rights = rights >> 4;
+              rights >>= 4;
           } while (rights);
+#else
+          uint64_t high = rights.b64[0], low = rights.b64[1];
+          do
+          {
+              unsigned digit = unsigned(low & 0xF);
+              hex += "0123456789abcdef"[digit];
+              low = (low >> 4) | (high << 60);
+              high >>= 4;
+          } while (high || low);
+#endif
+#else
+          do
+          {
+              unsigned digit = unsigned(rights & 0xF);
+              hex += "0123456789abcdef"[digit];
+              rights >>= 4;
+          } while (rights);
+#endif
           std::reverse(hex.begin(), hex.end());
           ss << hex;
       }
