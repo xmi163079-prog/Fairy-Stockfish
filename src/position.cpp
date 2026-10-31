@@ -565,7 +565,10 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
       // Only the recognized c620 token may restore rights; unknown or malformed
       // extensions must never be mistaken for a legacy fresh-start FEN.
       bool tokenPresent = bool(ss >> std::skipws >> rightsToken);
-      bool hasRights = tokenPresent && rightsToken.rfind("c620:", 0) == 0;
+      string extraToken;
+      bool extraTokenPresent = bool(ss >> std::skipws >> extraToken);
+      bool hasRights = tokenPresent && !extraTokenPresent
+                    && rightsToken.rfind("c620:", 0) == 0;
 
       if (hasRights)
       {
