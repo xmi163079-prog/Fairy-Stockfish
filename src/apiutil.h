@@ -1028,8 +1028,8 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
 #else
         const size_t maxRightsDigits = 16;
 #endif
-        auto isHexField = [](const std::string& field) {
-            return !field.empty() && field.size() <= maxRightsDigits
+        auto isHexField = [](const std::string& field, size_t maxDigits) {
+            return !field.empty() && field.size() <= maxDigits
                    && std::all_of(field.begin(), field.end(), [](unsigned char c) {
                           return std::isxdigit(c);
                       });
@@ -1037,8 +1037,8 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
         if (firstColon != 4 || rights.compare(0, 4, "c620") != 0
             || secondColon == std::string::npos
             || rights.find(':', secondColon + 1) != std::string::npos
-            || !isHexField(rights.substr(firstColon + 1, secondColon - firstColon - 1))
-            || !isHexField(rights.substr(secondColon + 1)))
+            || !isHexField(rights.substr(firstColon + 1, secondColon - firstColon - 1), maxRightsDigits)
+            || !isHexField(rights.substr(secondColon + 1), maxRightsDigits))
             return FEN_INVALID_CHAR;
     }
 
