@@ -548,6 +548,10 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   chess960 = isChess960 || v->chess960;
   tsumeMode = Options["TsumeMode"];
   thisThread = th;
+  // A newly loaded position starts with no stored rights; the FEN extension
+  // below installs the exact rights and updates the hash from this zero state.
+  if (var->chees620PawnDoubleStep)
+      st->chees620DoubleStepRights[WHITE] = st->chees620DoubleStepRights[BLACK] = 0;
   set_state(st);
 
   // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
