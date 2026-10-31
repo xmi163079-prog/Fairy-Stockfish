@@ -1028,7 +1028,7 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
 #else
         const size_t maxRightsDigits = 16;
 #endif
-        auto isHexField = [maxRightsDigits](const std::string& field) {
+        auto isHexField = [](const std::string& field) {
             return !field.empty() && field.size() <= maxRightsDigits
                    && std::all_of(field.begin(), field.end(), [](unsigned char c) {
                           return std::isxdigit(c);
