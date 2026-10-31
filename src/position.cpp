@@ -931,7 +931,16 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
       {
           if (c == BLACK)
               ss << ':';
-          ss << std::hex << st->chees620DoubleStepRights[c] << std::dec;
+          Bitboard rights = st->chees620DoubleStepRights[c];
+          string hex;
+          do
+          {
+              unsigned digit = unsigned(rights & 0xF);
+              hex += "0123456789abcdef"[digit];
+              rights >>= 4;
+          } while (rights);
+          std::reverse(hex.begin(), hex.end());
+          ss << hex;
       }
   }
 
