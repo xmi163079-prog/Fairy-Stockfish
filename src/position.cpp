@@ -2530,6 +2530,19 @@ Key Position::key_after(Move m) const {
   Piece captured = piece_on(to);
   Key k = st->key ^ Zobrist::side;
 
+  // Chees 620 pawn double-step rights are part of the position key.
+  // key_after() is used for normal-move prefetching, so account for a
+  // moving pawn's consumed right and a captured pawn's lost right here.
+  if (var->chees620PawnDoubleStep && type_of(m) == NORMAL)
+  {
+      if (type_of(pc) == PAWN && (st->chees620DoubleStepRights[sideToMove] & from))
+          k ^= Zobrist::chees620DoubleStep[sideToMove][from];
+
+      if (captured && type_of(captured) == PAWN
+          && (st->chees620DoubleStepRights[~sideToMove] & to))
+          k ^= Zobrist::chees620DoubleStep[~sideToMove][to];
+  }
+
   if (captured)
   {
       k ^= Zobrist::psq[captured][to];
