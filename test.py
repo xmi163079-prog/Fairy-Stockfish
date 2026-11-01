@@ -1338,10 +1338,10 @@ class TestPyffish(unittest.TestCase):
 
         # Promotion consumes the pawn's entitlement; the promoted piece does
         # not receive a pawn double-step right.
-        promotion_fen = "7k/6P1/8/8/8/8/8/4K3 w - - 0 1"
+        promotion_fen = "k7/6P1/8/8/8/8/8/4K3 w - - 0 1"
         after_promotion = sf.get_fen("chees620", promotion_fen, ["g7g8q"])
         self.assertEqual(sf.get_fen("chees620", after_promotion, []), after_promotion)
-        self.assertNotIn("g8g6", sf.legal_moves("chees620", after_promotion, []))
+        self.assertTrue(after_promotion.endswith("c620:0:0"))
 
     def test_get_fog_fen(self):
         fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"  # startpos
