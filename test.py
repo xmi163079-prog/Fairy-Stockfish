@@ -1303,6 +1303,46 @@ class TestPyffish(unittest.TestCase):
                     self.assertEqual(result, -10, 
                                    f"Expected non-shogi variant to fail with character error (-10): {fen}, got {result}")
 
+    def test_chees620_pawn_rights_fen_roundtrip(self):
+        # Fresh legacy FEN grants each pawn its one-time entitlement, and the
+        # resulting extended FEN must preserve it exactly when loaded again.
+        fen = "7k/8/8/8/3P4/8/8/4K3 w - - 0 1"
+        extended = sf.get_fen("chees620", fen, [])
+        self.assertIn(" c620:", extended)
+        self.assertEqual(sf.get_fen("chees620", extended, []), extended)
+
+        # A mid-game legacy FEN must not silently restore consumed rights.
+        midgame = "7k/8/8/3P4/8/8/8/4K3 w - - 0 2"
+        midgame_extended = sf.get_fen("chees620", midgame, [])
+        self.assertEqual(sf.get_fen("chees620", midgame_extended, []), midgame_extended)
+        self.assertNotIn("d5d7", sf.legal_moves("chees620", midgame_extended, []))
+
+    def test_chees620_pawn_right_consumed_and_capture(self):
+        fen = "7k/8/8/8/3P4/8/8/4K3 w - - 0 1"
+        after_step = sf.get_fen("chees620", fen, ["d4d5", "h8g8"])
+        self.assertNotIn("d5d7", sf.legal_moves("chees620", after_step, []))
+
+        capture_fen = "7k/8/8/4p3/3P4/8/8/4K3 w - - 0 1"
+        after_capture = sf.get_fen("chees620", capture_fen, ["d4e5", "h8g8"])
+        self.assertNotIn("e5e7", sf.legal_moves("chees620", after_capture, []))
+        self.assertEqual(sf.get_fen("chees620", after_capture, []), after_capture)
+
+    def test_chees620_en_passant_and_promotion_consume_right(self):
+        # A fresh pawn may double-step from rank four; en passant exists for
+        # the reply only, and the capturing move must remain legal.
+        fen = "7k/8/4p3/8/3P4/8/8/4K3 w - - 0 1"
+        after_double = sf.get_fen("chees620", fen, ["d4d6"])
+        self.assertIn("e6d5", sf.legal_moves("chees620", after_double, []))
+        after_ep = sf.get_fen("chees620", after_double, ["e6d5"])
+        self.assertEqual(sf.get_fen("chees620", after_ep, []), after_ep)
+
+        # Promotion consumes the pawn's entitlement; the promoted piece does
+        # not receive a pawn double-step right.
+        promotion_fen = "k7/6P1/8/8/8/8/8/4K3 w - - 0 1"
+        after_promotion = sf.get_fen("chees620", promotion_fen, ["g7g8q"])
+        self.assertEqual(sf.get_fen("chees620", after_promotion, []), after_promotion)
+        self.assertTrue(after_promotion.endswith("c620:0:0"))
+
     def test_get_fog_fen(self):
         fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"  # startpos
         result = sf.get_fog_fen(fen, "fogofwar")

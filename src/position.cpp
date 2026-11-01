@@ -45,6 +45,7 @@ namespace Zobrist {
   Key inHand[PIECE_NB][SQUARE_NB];
   Key checks[COLOR_NB][CHECKS_NB];
   Key wall[SQUARE_NB];
+  Key chees620DoubleStep[COLOR_NB][SQUARE_NB];
   Key endgame[EG_EVAL_NB];
 }
 
@@ -184,6 +185,10 @@ void Position::init() {
 
   for (Square s = SQ_A1; s <= SQ_MAX; ++s)
       Zobrist::wall[s] = rng.rand<Key>();
+
+  for (Color c : {WHITE, BLACK})
+      for (Square s = SQ_A1; s <= SQ_MAX; ++s)
+          Zobrist::chees620DoubleStep[c][s] = rng.rand<Key>();
 
   for (int i = NO_EG_EVAL; i < EG_EVAL_NB; ++i)
       Zobrist::endgame[i] = rng.rand<Key>();
@@ -543,7 +548,102 @@ Position& Position::set(const Variant* v, const string& fenStr, bool isChess960,
   chess960 = isChess960 || v->chess960;
   tsumeMode = Options["TsumeMode"];
   thisThread = th;
+  // A newly loaded position starts with no stored rights; the FEN extension
+  // below installs the exact rights and updates the hash from this zero state.
+  if (var->chees620PawnDoubleStep)
+      st->chees620DoubleStepRights[WHITE] = st->chees620DoubleStepRights[BLACK] = 0;
   set_state(st);
+
+  // Chees 620 FEN extension: c620:<white-rights-hex>:<black-rights-hex>.
+  // Legacy six-field FENs at ply zero are treated as fresh starts. A
+  // mid-game FEN without the extension cannot safely recover consumed rights.
+  if (var->chees620PawnDoubleStep)
+  {
+      string rightsToken;
+      Bitboard rights[COLOR_NB] = {0, 0};
+      // Any trailing token means the FEN explicitly supplied an extension.
+      // Only the recognized c620 token may restore rights; unknown or malformed
+      // extensions must never be mistaken for a legacy fresh-start FEN.
+      bool tokenPresent = bool(ss >> std::skipws >> rightsToken);
+      string extraToken;
+      bool extraTokenPresent = bool(ss >> std::skipws >> extraToken);
+      bool hasRights = tokenPresent && !extraTokenPresent
+                    && rightsToken.rfind("c620:", 0) == 0;
+
+      if (hasRights)
+      {
+          size_t sep = rightsToken.find(':', 5);
+          if (sep == string::npos || sep == 5 || sep + 1 == rightsToken.size())
+              hasRights = false;
+          else
+          {
+              string whiteHex = rightsToken.substr(5, sep - 5);
+              string blackHex = rightsToken.substr(sep + 1);
+              auto parseHex = [](const string& value, Bitboard& result) {
+#ifdef LARGEBOARDS
+                  if (value.empty() || value.size() > 32)
+#else
+                  if (value.empty() || value.size() > 16)
+#endif
+                      return false;
+
+                  uint64_t high = 0, low = 0;
+                  for (unsigned char ch : value)
+                  {
+                      unsigned digit;
+                      if (ch >= '0' && ch <= '9')
+                          digit = ch - '0';
+                      else if (ch >= 'a' && ch <= 'f')
+                          digit = ch - 'a' + 10;
+                      else if (ch >= 'A' && ch <= 'F')
+                          digit = ch - 'A' + 10;
+                      else
+                          return false;
+
+                      if (high > UINT64_MAX / 16)
+                          return false;
+
+                      high = high * 16 + (low >> 60);
+                      low = (low << 4) | digit;
+                  }
+#ifdef LARGEBOARDS
+#if defined(__GNUC__) && defined(IS_64BIT)
+                  result = (Bitboard(high) << 64) | Bitboard(low);
+#else
+                  result = Bitboard(high, low);
+#endif
+#else
+                  result = low;
+#endif
+                  return true;
+              };
+              hasRights = parseHex(whiteHex, rights[WHITE])
+                       && parseHex(blackHex, rights[BLACK]);
+          }
+      }
+
+      // Fresh starts without an extension grant each pawn its lifetime right.
+      // A malformed supplied extension or a mid-game legacy FEN must not
+      // silently grant new rights.
+      if (!hasRights)
+      {
+          if (tokenPresent || gamePly != 0)
+              rights[WHITE] = rights[BLACK] = 0;
+          else
+          {
+              rights[WHITE] = pieces(WHITE, PAWN);
+              rights[BLACK] = pieces(BLACK, PAWN);
+          }
+      }
+
+      for (Color c : {WHITE, BLACK})
+      {
+          rights[c] &= pieces(c, PAWN);
+          for (Bitboard b = st->chees620DoubleStepRights[c] ^ rights[c]; b; )
+              st->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
+          st->chees620DoubleStepRights[c] = rights[c];
+      }
+  }
 
   assert(pos_is_ok());
 
@@ -647,6 +747,10 @@ void Position::set_state(StateInfo* si) const {
 
   for (Bitboard b = si->epSquares; b; )
       si->key ^= Zobrist::enpassant[file_of(pop_lsb(b))];
+
+  for (Color c : {WHITE, BLACK})
+      for (Bitboard b = si->chees620DoubleStepRights[c]; b; )
+          si->key ^= Zobrist::chees620DoubleStep[c][pop_lsb(b)];
 
   if (sideToMove == BLACK)
       si->key ^= Zobrist::side;
@@ -834,6 +938,46 @@ string Position::fen(bool sfen, bool showPromoted, int countStarted, std::string
       ss << st->rule50;
 
   ss << " " << 1 + (gamePly - (sideToMove == BLACK)) / 2;
+
+  if (var->chees620PawnDoubleStep)
+  {
+      ss << " c620:";
+      for (Color c : {WHITE, BLACK})
+      {
+          if (c == BLACK)
+              ss << ':';
+          Bitboard rights = st->chees620DoubleStepRights[c];
+          string hex;
+#ifdef LARGEBOARDS
+#if defined(__GNUC__) && defined(IS_64BIT)
+          do
+          {
+              unsigned digit = unsigned(rights & Bitboard(0xF));
+              hex += "0123456789abcdef"[digit];
+              rights >>= 4;
+          } while (rights);
+#else
+          uint64_t high = rights.b64[0], low = rights.b64[1];
+          do
+          {
+              unsigned digit = unsigned(low & 0xF);
+              hex += "0123456789abcdef"[digit];
+              low = (low >> 4) | (high << 60);
+              high >>= 4;
+          } while (high || low);
+#endif
+#else
+          do
+          {
+              unsigned digit = unsigned(rights & 0xF);
+              hex += "0123456789abcdef"[digit];
+              rights >>= 4;
+          } while (rights);
+#endif
+          std::reverse(hex.begin(), hex.end());
+          ss << hex;
+      }
+  }
 
   return ss.str();
 }
@@ -1386,6 +1530,7 @@ bool Position::pseudo_legal(const Move m) const {
           && !((from + pawn_push(us) == to) && !(pieces() & to)) // Not a single push
           && !(   (from + 2 * pawn_push(us) == to)               // Not a double push
                && (double_step_region(us) & from)
+               && (!var->chees620PawnDoubleStep || (st->chees620DoubleStepRights[us] & from))
                && !(pieces() & (to | (to - pawn_push(us)))))
           && !(   (from + 3 * pawn_push(us) == to)               // Not a triple push
                && (triple_step_region(us) & from)
@@ -1587,6 +1732,16 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
       assert((type_of(m) == PROMOTION && sittuyin_promotion()) || (is_pass(m) && (pass(us) || var->wallOrMove )));
       captured = NO_PIECE;
   }
+
+  // Chees 620: a pawn's first move consumes its lifetime double-step right,
+  // regardless of whether that move advances one, two, or captures.
+  if (var->chees620PawnDoubleStep && type_of(pc) == PAWN
+      && (st->chees620DoubleStepRights[us] & from))
+  {
+      st->chees620DoubleStepRights[us] &= ~from;
+      k ^= Zobrist::chees620DoubleStep[us][from];
+  }
+
   st->capturedpromoted = is_promoted(to);
   st->unpromotedCapturedPiece = captured ? unpromoted_piece_on(to) : NO_PIECE;
   st->pass = is_pass(m);
@@ -1622,6 +1777,12 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
           assert(st->epSquares & to);
           assert(var->enPassantRegion[us] & to);
           assert(piece_on(to) == NO_PIECE);
+      }
+
+      if (var->chees620PawnDoubleStep && type_of(captured) == PAWN && (st->chees620DoubleStepRights[them] & capsq))
+      {
+          st->chees620DoubleStepRights[them] &= ~capsq;
+          k ^= Zobrist::chees620DoubleStep[them][capsq];
       }
 
       // If the captured piece is a pawn, update pawn hash key, otherwise
@@ -2368,6 +2529,19 @@ Key Position::key_after(Move m) const {
   Piece pc = moved_piece(m);
   Piece captured = piece_on(to);
   Key k = st->key ^ Zobrist::side;
+
+  // Chees 620 pawn double-step rights are part of the position key.
+  // key_after() is used for normal-move prefetching, so account for a
+  // moving pawn's consumed right and a captured pawn's lost right here.
+  if (var->chees620PawnDoubleStep && type_of(m) == NORMAL)
+  {
+      if (type_of(pc) == PAWN && (st->chees620DoubleStepRights[sideToMove] & from))
+          k ^= Zobrist::chees620DoubleStep[sideToMove][from];
+
+      if (captured && type_of(captured) == PAWN
+          && (st->chees620DoubleStepRights[~sideToMove] & to))
+          k ^= Zobrist::chees620DoubleStep[~sideToMove][to];
+  }
 
   if (captured)
   {
