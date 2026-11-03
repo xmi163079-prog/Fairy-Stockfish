@@ -1327,6 +1327,16 @@ class TestPyffish(unittest.TestCase):
         self.assertNotIn("e5e7", sf.legal_moves("chees620", after_capture, []))
         self.assertEqual(sf.get_fen("chees620", after_capture, []), after_capture)
 
+        # Capturing an enemy pawn removes that pawn's entitlement from the
+        # position state; the right must not remain attached to the square.
+        captured_right_fen = "7k/8/8/3p4/4P3/8/8/4K3 w - - 0 1 c620:0:800000000"
+        after_capturing_entitled_pawn = sf.get_fen(
+            "chees620", captured_right_fen, ["e4d5"])
+        self.assertTrue(after_capturing_entitled_pawn.endswith("c620:0:0"))
+        self.assertEqual(
+            sf.get_fen("chees620", after_capturing_entitled_pawn, []),
+            after_capturing_entitled_pawn)
+
     def test_chees620_en_passant_and_promotion_consume_right(self):
         # A fresh pawn may double-step from rank four; en passant exists for
         # the reply only, and the capturing move must remain legal.
