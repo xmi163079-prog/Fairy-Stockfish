@@ -42,3 +42,8 @@ jobs:
         run: |
           chmod +x ../tests/perft.sh
           ../tests/perft.sh variant
+
+      - name: Verify Chees 620 hash and undo restoration
+        run: |
+          chmod +x tests/chees620-hash-undo.sh
+          tests/chees620-hash-undo.sh
