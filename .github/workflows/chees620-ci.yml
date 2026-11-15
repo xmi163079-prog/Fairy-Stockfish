@@ -47,3 +47,7 @@ jobs:
         run: |
           chmod +x tests/chees620-hash-undo.sh
           tests/chees620-hash-undo.sh
+
+      - name: Verify Chees 620 pawn-origin rights and first-move consumption
+        run: |
+          python3 tests/chees620-pawn-rights.py
