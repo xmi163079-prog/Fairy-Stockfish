@@ -114,7 +114,8 @@ def main():
     if has_move(output, "d5d7"):
         raise AssertionError("White pawn regained its double-step right after d4-d5")
 
-    print("Chees 620 pawn-origin rights: 10/10 in-board origins passed")\n    print("Chees 620 off-board edge origins: 2/2 correctly excluded")
+    print("Chees 620 pawn-origin rights: 10/10 in-board origins passed")
+    print("Chees 620 off-board edge origins: 2/2 correctly excluded")
     print("Chees 620 first-move consumption: passed")
 
 
