@@ -1304,6 +1304,19 @@ class TestPyffish(unittest.TestCase):
                                    f"Expected non-shogi variant to fail with character error (-10): {fen}, got {result}")
 
     def test_chees620_pawn_rights_fen_roundtrip(self):
+        # Explicit entitlement bits must point to a pawn of the matching color.
+        valid_rights = "7k/8/8/8/3P4/8/8/4K3 w - - 0 1 c620:8000000:0"
+        self.assertEqual(sf.validate_fen(valid_rights, "chees620"), sf.FEN_OK)
+
+        stale_square_rights = "7k/8/8/3P4/8/8/8/4K3 w - - 0 1 c620:8000000:0"
+        self.assertNotEqual(sf.validate_fen(stale_square_rights, "chees620"), sf.FEN_OK)
+
+        wrong_color_rights = "7k/8/8/8/3p4/8/8/4K3 w - - 0 1 c620:8000000:0"
+        self.assertNotEqual(sf.validate_fen(wrong_color_rights, "chees620"), sf.FEN_OK)
+
+        malformed_rights = "7k/8/8/8/3P4/8/8/4K3 w - - 0 1 c620:xyz:0"
+        self.assertNotEqual(sf.validate_fen(malformed_rights, "chees620"), sf.FEN_OK)
+
         # Fresh legacy FEN grants each pawn its one-time entitlement, and the
         # resulting extended FEN must preserve it exactly when loaded again.
         fen = "7k/8/8/8/3P4/8/8/4K3 w - - 0 1"
