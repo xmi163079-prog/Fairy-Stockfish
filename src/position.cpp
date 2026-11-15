@@ -1699,6 +1699,19 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 #endif
   Key k = st->key ^ Zobrist::side;
 
+#ifndef NDEBUG
+  // Validate key_after() against the real make-move hash for the subset it
+  // supports. Exclude positions where other hash components change.
+  bool verifyChees620KeyAfter =
+      var->chees620PawnDoubleStep && type_of(m) == NORMAL
+      && !st->epSquares && !check_counting() && !captures_to_hand()
+      && !flip_enclosed_pieces() && !walling() && !gating()
+      && !(castlingRightsMask[from_sq(m)] | castlingRightsMask[to_sq(m)])
+      && !(type_of(moved_piece(m)) == PAWN
+           && std::abs(int(to_sq(m)) - int(from_sq(m))) == 2 * NORTH);
+  Key predictedChees620Key = verifyChees620KeyAfter ? key_after(m) : Key(0);
+#endif
+
   // Copy some fields of the old state to our new StateInfo object except the
   // ones which are going to be recalculated from scratch anyway and then switch
   // our state pointer to point to the new (ready to be updated) state.
@@ -2252,6 +2265,10 @@ void Position::do_move(Move m, StateInfo& newSt, bool givesCheck) {
 
   // Update the key with the final value
   st->key = k;
+#ifndef NDEBUG
+  if (verifyChees620KeyAfter)
+      assert(st->key == predictedChees620Key);
+#endif
   // Calculate checkers bitboard (if move gives check)
   st->checkersBB = givesCheck ? attackers_to(square<KING>(them), us) & pieces(us) : Bitboard(0);
   assert(givesCheck == bool(st->checkersBB));
