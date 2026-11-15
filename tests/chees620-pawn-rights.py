@@ -57,6 +57,8 @@ def check_origin(color, rank):
     black_rights = mask if color == "black" else 0
     side = "w" if color == "white" else "b"
     move = f"d{rank}d{rank + 2 if color == 'white' else rank - 2}"
+    promotion_destination = (color == "white" and rank == 6) or (color == "black" and rank == 3)
+    expected_moves = [move + suffix for suffix in "qrbn"] if promotion_destination else [move]
     board = placement(color, rank)
 
     with_right = (
@@ -65,19 +67,43 @@ def check_origin(color, rank):
     )
     without_right = f"{board} {side} - - 0 1 c620:0:0"
 
-    if not has_move(run_perft(with_right), move):
-        raise AssertionError(f"{color} pawn from d{rank}: expected {move} with right")
-    if has_move(run_perft(without_right), move):
-        raise AssertionError(f"{color} pawn from d{rank}: {move} appeared without right")
+    with_right_output = run_perft(with_right)
+    without_right_output = run_perft(without_right)
+    if not any(has_move(with_right_output, candidate) for candidate in expected_moves):
+        raise AssertionError(
+            f"{color} pawn from d{rank}: expected one of {expected_moves} with right"
+        )
+    if any(has_move(without_right_output, candidate) for candidate in expected_moves):
+        raise AssertionError(
+            f"{color} pawn from d{rank}: double-step appeared without right"
+        )
 
 
 def main():
-    # Promotion-rank destinations are intentionally excluded from this
-    # double-step eligibility regression. Cover all non-promotion origins.
-    for rank in range(2, 6):
+    # All in-board two-square origins are covered. A two-square move that
+    # lands on the promotion rank must carry a promotion suffix.
+    for rank in range(2, 7):
         check_origin("white", rank)
-    for rank in range(4, 8):
+    for rank in range(3, 8):
         check_origin("black", rank)
+
+    # White rank 7 and black rank 2 still have an entitlement, but a two-square
+    # move would leave the board, so no such move may be generated.
+    for color, rank, move in (
+        ("white", 7, "d7d9"),
+        ("black", 2, "d2d0"),
+    ):
+        square_index = (rank - 1) * 8 + 3
+        mask = 1 << square_index
+        white_rights = mask if color == "white" else 0
+        black_rights = mask if color == "black" else 0
+        side = "w" if color == "white" else "b"
+        fen = (
+            f"{placement(color, rank)} {side} - - 0 1 "
+            f"c620:{white_rights:x}:{black_rights:x}"
+        )
+        if has_move(run_perft(fen), move):
+            raise AssertionError(f"{color} pawn from d{rank}: generated off-board move {move}")
 
     # A pawn's first move consumes its right; it cannot double-step later.
     fen = (
@@ -88,7 +114,7 @@ def main():
     if has_move(output, "d5d7"):
         raise AssertionError("White pawn regained its double-step right after d4-d5")
 
-    print("Chees 620 pawn-origin rights: 8/8 cases passed")
+    print("Chees 620 pawn-origin rights: 10/10 in-board origins passed")\n    print("Chees 620 off-board edge origins: 2/2 correctly excluded")
     print("Chees 620 first-move consumption: passed")
 
 
