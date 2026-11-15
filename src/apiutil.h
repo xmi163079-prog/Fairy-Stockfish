@@ -1060,6 +1060,44 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
     if (fill_char_board(board, fenParts[0], validSpecialCharactersFirstField, v) == NOK)
         return FEN_INVALID_BOARD_GEOMETRY;
 
+    // A Chees 620 entitlement mask must identify an actual pawn of the
+    // matching color. Do not silently discard stale or forged square bits.
+    if (hasChees620Rights)
+    {
+        const std::string& rightsToken = fenParts.back();
+        const size_t firstColon = rightsToken.find(':');
+        const size_t secondColon = rightsToken.find(':', firstColon + 1);
+        const std::string whiteHex = rightsToken.substr(firstColon + 1, secondColon - firstColon - 1);
+        const std::string blackHex = rightsToken.substr(secondColon + 1);
+
+        auto maskMatchesPawn = [&](const std::string& hex, char pawnChar) {
+            size_t baseSquare = 0;
+            for (auto it = hex.rbegin(); it != hex.rend(); ++it)
+            {
+                unsigned digit = *it >= '0' && *it <= '9' ? unsigned(*it - '0')
+                                : *it >= 'a' && *it <= 'f' ? unsigned(*it - 'a' + 10)
+                                                           : unsigned(*it - 'A' + 10);
+                for (unsigned bit = 0; bit < 4; ++bit)
+                    if (digit & (1u << bit))
+                    {
+                        const size_t square = baseSquare + bit;
+                        if (square >= size_t(nbRanks) * size_t(nbFiles))
+                            return false;
+                        const int file = int(square % size_t(nbFiles));
+                        const int rank = int(square / size_t(nbFiles));
+                        if (board.get_piece(v->maxRank - rank, file) != pawnChar)
+                            return false;
+                    }
+                baseSquare += 4;
+            }
+            return true;
+        };
+
+        if (!maskMatchesPawn(whiteHex, v->pieceToChar[make_piece(WHITE, PAWN)])
+            || !maskMatchesPawn(blackHex, v->pieceToChar[make_piece(BLACK, PAWN)]))
+            return FEN_INVALID_CHAR;
+    }
+
     // check for pocket
     std::string pocket = "";
     if (v->pieceDrops || v->seirawanGating)
