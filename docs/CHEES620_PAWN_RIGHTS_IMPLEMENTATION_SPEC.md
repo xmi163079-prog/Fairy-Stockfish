@@ -8,6 +8,8 @@ Every pawn has one lifetime entitlement to make a two-square forward move. The e
 
 Pawns supplied in a Chees 620 starting position may begin on any legal pawn rank (2 through 7). Only pawns that have not moved receive the entitlement. A plain six-field FEN cannot represent this distinction for arbitrary midgame positions, so the engine/app boundary must serialize the entitlement explicitly.
 
+On an 8×8 board, every geometrically possible two-square origin is supported: White may double-step from ranks 2–6 and Black from ranks 3–7. If the destination is the promotion rank (White 6→8 or Black 3→1), the same two-square move must be represented as a promotion move and offer the normal promotion choices. White pawns on rank 7 and Black pawns on rank 2 retain their entitlement, but cannot double-step because the destination would be off the board; their first legal move consumes the entitlement normally.
+
 ## Required engine representation
 
 - Keep two bitboards in the copied portion of StateInfo: white pawn entitlement squares and black pawn entitlement squares.
@@ -23,7 +25,7 @@ Use a variant-specific trailing field, for example `c620:<white-hex>:<black-hex>
 
 ## Acceptance tests
 
-1. A fresh white or black pawn on each rank 2–7 may double-step if both squares are clear.
+1. A fresh pawn may double-step from every in-board origin (White ranks 2–6; Black ranks 3–7) if both squares are clear; a double-step ending on the promotion rank must promote in that move. The off-board edge origins (White rank 7; Black rank 2) must not generate a double-step.
 2. A fresh pawn may single-step, but then cannot double-step later.
 3. A fresh pawn may capture first, but then cannot double-step later.
 4. Capturing an entitled pawn removes its entitlement; it must not reappear if another pawn later occupies that square.
