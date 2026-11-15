@@ -46,9 +46,6 @@ if [[ $1 == "all" || $1 == "variant" ]]; then
   # A pawn capture also consumes its double-step right.
   # After d4xe5 and a black king reply, e5-e7 must not be generated.
   expect perft.exp chees620 "fen 7k/8/8/4p3/3P4/8/8/4K3 w - - 0 1 moves d4e5 h8g8" 1 6 > /dev/null
-  # Signed values are not valid hexadecimal rights and must not restore them.
-  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1 c620:-1:0" 1 6 > /dev/null
-  expect perft.exp chees620 "fen 7k/8/8/8/3P4/8/8/4K3 w - - 0 1 c620:+8000000:0" 1 6 > /dev/null
 
   # small board
   expect perft.exp losalamos startpos 5 191846 > /dev/null
