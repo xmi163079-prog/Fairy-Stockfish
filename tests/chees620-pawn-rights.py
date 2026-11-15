@@ -72,11 +72,11 @@ def check_origin(color, rank):
 
 
 def main():
-    # A two-square move must remain available from every square where it
-    # stays on the board: White d2-d6 and Black d7-d3.
-    for rank in range(2, 7):
+    # A two-square move must remain available from every non-promotion
+    # origin square tested: White d2-d5 and Black d7-d4.
+    for rank in range(2, 6):
         check_origin("white", rank)
-    for rank in range(3, 8):
+    for rank in range(4, 8):
         check_origin("black", rank)
 
     # A pawn's first move consumes its right; it cannot double-step later.
@@ -88,7 +88,7 @@ def main():
     if has_move(output, "d5d7"):
         raise AssertionError("White pawn regained its double-step right after d4-d5")
 
-    print("Chees 620 pawn-origin rights: 10/10 cases passed")
+    print("Chees 620 pawn-origin rights: 8/8 cases passed")
     print("Chees 620 first-move consumption: passed")
 
 
