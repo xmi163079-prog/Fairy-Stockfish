@@ -1085,7 +1085,7 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
                             return false;
                         const int file = int(square % size_t(nbFiles));
                         const int rank = int(square / size_t(nbFiles));
-                        if (board.get_piece(v->maxRank - rank, file) != pawnChar)
+                        if (board.get_piece(rank, file) != pawnChar)
                             return false;
                     }
                 baseSquare += 4;
