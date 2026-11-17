@@ -1080,12 +1080,14 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
                 for (unsigned bit = 0; bit < 4; ++bit)
                     if (digit & (1u << bit))
                     {
+                        // Bitboard square indexing uses FILE_NB as its row
+                        // stride, including LARGEBOARDS builds where an 8-file
+                        // variant still occupies a 16-file internal stride.
                         const size_t square = baseSquare + bit;
-                        if (square >= size_t(nbRanks) * size_t(nbFiles))
-                            return false;
-                        const int file = int(square % size_t(nbFiles));
-                        const int rank = int(square / size_t(nbFiles));
-                        if (board.get_piece(rank, file) != pawnChar)
+                        const size_t file = square % size_t(FILE_NB);
+                        const size_t rank = square / size_t(FILE_NB);
+                        if (file >= size_t(nbFiles) || rank >= size_t(nbRanks)
+                            || board.get_piece(int(rank), int(file)) != pawnChar)
                             return false;
                     }
                 baseSquare += 4;
