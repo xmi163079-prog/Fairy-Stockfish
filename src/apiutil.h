@@ -1004,13 +1004,42 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
     std::vector<std::string> fenParts = get_fen_parts(fen, ' ');
     std::vector<std::string> startFenParts = get_fen_parts(v->startFen, ' ');
 
-    // check for number of parts
-    const unsigned int maxNumberFenParts = 6 + v->checkCounting;
+    // Chees 620 appends its per-pawn double-step rights as one variant-specific
+    // trailing FEN field. Keep the standard FEN field count unchanged for all
+    // other variants, and validate the extension before accepting it.
+    const unsigned int maxNumberFenParts = 6 + v->checkCounting
+                                           + unsigned(v->chees620PawnDoubleStep);
+    const bool hasChees620Rights = v->chees620PawnDoubleStep
+                                   && fenParts.size() == maxNumberFenParts;
     if (fenParts.size() < 1 || fenParts.size() > maxNumberFenParts)
     {
         std::cerr << "Invalid number of fen parts. Expected: >= 1 and <= " << maxNumberFenParts
                   << " Actual: " << fenParts.size() << std::endl;
         return FEN_INVALID_NB_PARTS;
+    }
+    if (hasChees620Rights)
+    {
+        const std::string& rights = fenParts.back();
+        const size_t firstColon = rights.find(':');
+        const size_t secondColon = firstColon == std::string::npos
+                                      ? std::string::npos : rights.find(':', firstColon + 1);
+#ifdef LARGEBOARDS
+        const size_t maxRightsDigits = 32;
+#else
+        const size_t maxRightsDigits = 16;
+#endif
+        auto isHexField = [](const std::string& field, size_t maxDigits) {
+            return !field.empty() && field.size() <= maxDigits
+                   && std::all_of(field.begin(), field.end(), [](unsigned char c) {
+                          return std::isxdigit(c);
+                      });
+        };
+        if (firstColon != 4 || rights.compare(0, 4, "c620") != 0
+            || secondColon == std::string::npos
+            || rights.find(':', secondColon + 1) != std::string::npos
+            || !isHexField(rights.substr(firstColon + 1, secondColon - firstColon - 1), maxRightsDigits)
+            || !isHexField(rights.substr(secondColon + 1), maxRightsDigits))
+            return FEN_INVALID_CHAR;
     }
 
     // 1) Part
@@ -1030,6 +1059,46 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
 
     if (fill_char_board(board, fenParts[0], validSpecialCharactersFirstField, v) == NOK)
         return FEN_INVALID_BOARD_GEOMETRY;
+
+    // A Chees 620 entitlement mask must identify an actual pawn of the
+    // matching color. Do not silently discard stale or forged square bits.
+    if (hasChees620Rights)
+    {
+        const std::string& rightsToken = fenParts.back();
+        const size_t firstColon = rightsToken.find(':');
+        const size_t secondColon = rightsToken.find(':', firstColon + 1);
+        const std::string whiteHex = rightsToken.substr(firstColon + 1, secondColon - firstColon - 1);
+        const std::string blackHex = rightsToken.substr(secondColon + 1);
+
+        auto maskMatchesPawn = [&](const std::string& hex, char pawnChar) {
+            size_t baseSquare = 0;
+            for (auto it = hex.rbegin(); it != hex.rend(); ++it)
+            {
+                unsigned digit = *it >= '0' && *it <= '9' ? unsigned(*it - '0')
+                                : *it >= 'a' && *it <= 'f' ? unsigned(*it - 'a' + 10)
+                                                           : unsigned(*it - 'A' + 10);
+                for (unsigned bit = 0; bit < 4; ++bit)
+                    if (digit & (1u << bit))
+                    {
+                        // Bitboard square indexing uses FILE_NB as its row
+                        // stride, including LARGEBOARDS builds where an 8-file
+                        // variant still occupies a 16-file internal stride.
+                        const size_t square = baseSquare + bit;
+                        const size_t file = square % size_t(FILE_NB);
+                        const size_t rank = square / size_t(FILE_NB);
+                        if (file >= size_t(nbFiles) || rank >= size_t(nbRanks)
+                            || board.get_piece(int(rank), int(file)) != pawnChar)
+                            return false;
+                    }
+                baseSquare += 4;
+            }
+            return true;
+        };
+
+        if (!maskMatchesPawn(whiteHex, v->pieceToChar[make_piece(WHITE, PAWN)])
+            || !maskMatchesPawn(blackHex, v->pieceToChar[make_piece(BLACK, PAWN)]))
+            return FEN_INVALID_CHAR;
+    }
 
     // check for pocket
     std::string pocket = "";
@@ -1125,7 +1194,7 @@ inline FenValidation validate_fen(const std::string& fen, const Variant* v, bool
     // 5) Part
     // check check count
     unsigned int optionalInbetweenFields = 2 * !skipCastlingAndEp;
-    unsigned int optionalTrailingFields = 0;
+    unsigned int optionalTrailingFields = unsigned(hasChees620Rights);
     if (fenParts.size() >= 3 + optionalInbetweenFields && v->checkCounting && fenParts.size() % 2)
     {
         if (check_check_count(fenParts[2 + optionalInbetweenFields]) == NOK)

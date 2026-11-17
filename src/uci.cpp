@@ -23,6 +23,7 @@
 #include <sstream>
 #include <string>
 
+#include "apiutil.h"
 #include "evaluate.h"
 #include "movegen.h"
 #include "position.h"
@@ -67,8 +68,16 @@ namespace {
     else
         return;
 
+    const Variant* variant = variants.find(Options["UCI_Variant"])->second;
+    if (variant->chees620PawnDoubleStep
+        && FEN::validate_fen(fen, variant, Options["UCI_Chess960"]) != FEN::FEN_OK)
+    {
+        cerr << "Invalid Chees 620 FEN rejected: " << fen << endl;
+        return;
+    }
+
     states = StateListPtr(new std::deque<StateInfo>(1)); // Drop old and create a new one
-    pos.set(variants.find(Options["UCI_Variant"])->second, fen, Options["UCI_Chess960"], &states->back(), Threads.main(), sfen);
+    pos.set(variant, fen, Options["UCI_Chess960"], &states->back(), Threads.main(), sfen);
 
     // Parse move list (if any)
     while (is >> token && (m = UCI::to_move(pos, token)) != MOVE_NONE)

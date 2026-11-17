@@ -68,6 +68,8 @@ struct Variant {
   PieceSet mutuallyImmuneTypes = NO_PIECE_SET;
   PieceSet petrifyOnCaptureTypes = NO_PIECE_SET;
   bool petrifyBlastPieces = false;
+  // Chees 620 tracks each pawn's one-time double-step entitlement in Position state.
+  bool chees620PawnDoubleStep = false;
   bool doubleStep = true;
   Bitboard doubleStepRegion[COLOR_NB] = {Rank2BB, Rank7BB};
   Bitboard tripleStepRegion[COLOR_NB] = {};
